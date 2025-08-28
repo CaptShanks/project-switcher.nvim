@@ -1,0 +1,131 @@
+*project-switcher.txt*  Fast git repository switching for Neovim
+
+==============================================================================
+PROJECT SWITCHER.NVIM                               *project-switcher.nvim*
+
+A Neovim plugin for quickly switching between git repositories without 
+leaving your tmux session.
+
+==============================================================================
+CONTENTS                                        *project-switcher-contents*
+
+    1. Installation ......................... |project-switcher-installation|
+    2. Configuration ........................ |project-switcher-configuration|
+    3. Usage ................................ |project-switcher-usage|
+    4. Commands ............................. |project-switcher-commands|
+    5. API .................................. |project-switcher-api|
+    6. License .............................. |project-switcher-license|
+
+==============================================================================
+INSTALLATION                                *project-switcher-installation*
+
+Using lazy.nvim: >
+    {
+      "your-username/project-switcher.nvim",
+      lazy = false,
+      config = function()
+        require("project-switcher").setup()
+      end
+    }
+<
+
+==============================================================================
+CONFIGURATION                              *project-switcher-configuration*
+
+Default configuration: >
+    require("project-switcher").setup({
+      search_dirs = {
+        "~/",
+        "~/Documents/git",
+        "~/code",
+        "~/work", 
+        "~/dev",
+        "~/dotfiles",
+      },
+      max_depth = 3,
+      show_hidden = false,
+      use_cache = true,
+      cache_file = vim.fn.stdpath("state") .. "/projects_cache.json",
+    })
+<
+
+search_dirs                                     *project-switcher-search_dirs*
+    List of directories to search for git repositories.
+    Type: table
+    Default: {"~/", "~/Documents/git", ...}
+
+max_depth                                         *project-switcher-max_depth*
+    Maximum depth to search within directories.
+    Type: number
+    Default: 3
+
+show_hidden                                     *project-switcher-show_hidden*
+    Whether to show hidden directories (starting with .).
+    Type: boolean
+    Default: false
+
+use_cache                                         *project-switcher-use_cache*
+    Whether to cache project list for faster subsequent searches.
+    Type: boolean
+    Default: true
+
+cache_file                                       *project-switcher-cache_file*
+    Path to the cache file.
+    Type: string
+    Default: vim.fn.stdpath("state") .. "/projects_cache.json"
+
+==============================================================================
+USAGE                                              *project-switcher-usage*
+
+Default keymaps:
+    <leader>fp          Open project picker
+    <leader>fP          Refresh project cache
+
+The plugin automatically discovers git repositories in configured directories
+and provides a fuzzy searchable interface to switch between them.
+
+==============================================================================
+COMMANDS                                        *project-switcher-commands*
+
+:ProjectSwitch                                             *:ProjectSwitch*
+    Open the project picker interface.
+
+:ProjectRefresh                                           *:ProjectRefresh*
+    Refresh the project cache by re-scanning directories.
+
+==============================================================================
+API                                                    *project-switcher-api*
+
+require("project-switcher").setup({config})              *ps.setup()*
+    Initialize the plugin with configuration options.
+    
+    Parameters: ~
+        {config} (table) Configuration options
+
+require("project-switcher").pick_project()              *ps.pick_project()*
+    Open the project picker interface.
+
+require("project-switcher").switch_to_project({path})   *ps.switch_to_project()*
+    Switch to a specific project path.
+    
+    Parameters: ~
+        {path} (string) Full path to the project directory
+
+require("project-switcher").get_projects({force})       *ps.get_projects()*
+    Get list of discovered projects.
+    
+    Parameters: ~
+        {force} (boolean) Whether to force refresh the cache
+    
+    Returns: ~
+        (table) List of project objects with name, path, and display fields
+
+require("project-switcher").refresh_projects()          *ps.refresh_projects()*
+    Refresh the project cache.
+
+==============================================================================
+LICENSE                                        *project-switcher-license*
+
+MIT License
+
+vim:tw=78:ts=8:ft=help:norl:
