@@ -3,12 +3,13 @@
 [![Lua](https://img.shields.io/badge/Made%20with%20Lua-blueviolet.svg?style=for-the-badge&logo=lua)](https://lua.org)
 [![Neovim](https://img.shields.io/badge/NeoVim-%2357A143.svg?&style=for-the-badge&logo=neovim&logoColor=white)](https://neovim.io)
 
-A blazingly fast Neovim plugin for switching between git repositories without disrupting your tmux workflow. Perfect for developers managing multiple projects across different directories.
+A blazingly fast Neovim plugin for switching between git repositories and custom project folders without disrupting your tmux workflow. Perfect for developers managing multiple projects across different directories.
 
 ## ✨ Features
 
 - **⚡ Lightning Fast**: Intelligent caching system for instant project access
 - **🔍 Smart Discovery**: Automatically finds git repositories in configured directories  
+- **📁 Custom Projects**: Add any folder (git or non-git) to your project list
 - **🎯 Fuzzy Search**: Beautiful picker interface using `vim.ui.select` (enhanced by Snacks.nvim, Telescope, etc.)
 - **🚫 Zero Disruption**: Changes Neovim's working directory while keeping tmux panes intact
 - **⚙️ Highly Configurable**: Customize search paths, depth, visibility settings, and more
@@ -53,6 +54,11 @@ A blazingly fast Neovim plugin for switching between git repositories without di
         "~/dev",
         "~/Documents/git",
         "~/.config",
+      },
+      additional_folders = {
+        "~/Documents/notes",
+        "~/my-important-project",
+        "/path/to/any/folder",
       },
       max_depth = 4,
       show_hidden = true,
@@ -128,6 +134,13 @@ require("project-switcher").setup()
     "~/dotfiles",
   },
   
+  -- Additional folders to include (both git and non-git)
+  additional_folders = {
+    -- "~/my-important-project",
+    -- "~/Documents/notes",
+    -- "/path/to/any/folder",
+  },
+  
   -- Maximum depth to search for git repos (deeper = slower but more thorough)
   max_depth = 3,
   
@@ -140,6 +153,7 @@ require("project-switcher").setup()
   -- Cache file location
   cache_file = vim.fn.stdpath("state") .. "/projects_cache.json",
 }
+}
 ```
 
 ### Configuration Examples
@@ -148,6 +162,7 @@ require("project-switcher").setup()
 ```lua
 require("project-switcher").setup({
   search_dirs = { "~/code" },
+  additional_folders = { "~/Documents/notes" },
 })
 ```
 
@@ -174,10 +189,15 @@ require("project-switcher").setup({
     "~/code",
     "~/.config", -- Include dotfiles
   },
+  additional_folders = {
+    "~/Documents/notes",
+    "~/important-configs",
+    "~/temporary-workspace",
+    "/path/to/external/project",
+  },
   max_depth = 4, -- Deep search
   show_hidden = true, -- Include .dotfiles repos
   use_cache = true,
-  cache_file = vim.fn.expand("~/.cache/nvim/projects.json"), -- Custom cache location
 })
 ```
 
@@ -192,6 +212,11 @@ require("project-switcher").setup({
     "~/company/devops",
     "~/personal",
     "~/open-source",
+  },
+  additional_folders = {
+    "~/company/docs",
+    "~/company/configs",
+    "~/scratch",
   },
   max_depth = 3,
   show_hidden = false,
@@ -227,6 +252,10 @@ vim.keymap.set("n", "<leader>pr", function()
   require("project-switcher").refresh_projects()
 end, { desc = "Refresh Projects" })
 
+vim.keymap.set("n", "<leader>pr", function()
+  require("project-switcher").refresh_projects()
+end, { desc = "Refresh Projects" })
+
 -- Quick access to specific project types
 vim.keymap.set("n", "<leader>pw", function()
   -- Custom logic to filter work projects
@@ -234,6 +263,35 @@ vim.keymap.set("n", "<leader>pw", function()
   -- Filter and display work projects only
 end, { desc = "Work Projects" })
 ```
+
+## 📁 Additional Project Folders
+
+The plugin supports adding any folder (git or non-git) to your project list through simple configuration. This is perfect for:
+
+- **Non-git projects**: Documentation folders, config directories, etc.
+- **External projects**: Projects you don't own but work with frequently  
+- **Temporary workspaces**: Quick access to any folder you're working in
+
+### Adding Additional Folders
+
+Simply add them to your configuration:
+
+```lua
+require("project-switcher").setup({
+  search_dirs = {
+    "~/code",
+    "~/work",
+  },
+  additional_folders = {
+    "~/Documents/notes",          -- Documentation folder
+    "~/my-important-project",     -- Important non-git project
+    "~/scratch",                  -- Temporary workspace
+    "/path/to/external/project",  -- External project
+  },
+})
+```
+
+All additional folders will appear in the same picker with a 📁 icon, while git repositories show a 🔷 icon.
 
 ## 🔧 API Reference
 
@@ -261,10 +319,11 @@ require("project-switcher").switch_to_project("/path/to/my/project")
 ```
 
 #### `get_projects(force_refresh)`
-Get list of discovered projects. Returns array of project objects.
+Get list of discovered projects (both git repos and additional folders). Returns array of project objects.
 ```lua
 local projects = require("project-switcher").get_projects()
--- Projects structure: { name, path, display }
+-- Projects structure: { name, path, type }
+-- type can be "git" or "custom"
 
 -- Force refresh
 local fresh_projects = require("project-switcher").get_projects(true)
@@ -326,13 +385,48 @@ end
 vim.keymap.set("n", "<leader>fw", switch_to_work_project, { desc = "Work Projects" })
 ```
 
+#### Custom vs Git Project Filtering
+```lua
+local function switch_to_additional_projects_only()
+  local ps = require("project-switcher")
+  local all_projects = ps.get_projects()
+  
+  -- Filter only additional projects
+  local additional_projects = {}
+  for _, project in ipairs(all_projects) do
+    if project.type == "custom" then
+      table.insert(additional_projects, project.name .. " → " .. project.path)
+    end
+  end
+  
+  if #additional_projects == 0 then
+    vim.notify("No additional projects found", vim.log.levels.WARN)
+    return
+  end
+  
+  vim.ui.select(additional_projects, {
+    prompt = "Switch to additional project:",
+  }, function(choice, idx)
+    if choice then
+      local path = choice:match(" → (.+)$")
+      ps.switch_to_project(path)
+    end
+  end)
+end
+
+-- Create keymap for additional projects only
+vim.keymap.set("n", "<leader>fc", switch_to_additional_projects_only, { desc = "Additional Projects Only" })
+```
+
 ## 🎯 How It Works
 
 1. **🔍 Discovery Phase**: Scans configured directories using `find` command to locate `.git` folders
-2. **💾 Intelligent Caching**: Stores discovered projects in JSON format for rapid subsequent access
-3. **🎨 Beautiful Picker**: Leverages `vim.ui.select` which is enhanced by your picker plugin (Snacks.nvim, Telescope, etc.)
-4. **⚡ Fast Switching**: Changes Neovim's working directory to the selected project instantly
-5. **📡 Event Broadcasting**: Triggers `ProjectSwitched` autocmd for other plugins to react
+2. **📁 Additional Folders**: Includes user-defined additional folders from configuration
+3. **💾 Intelligent Caching**: Stores discovered git projects in JSON format for rapid subsequent access
+4. **🎨 Beautiful Picker**: Leverages `vim.ui.select` which is enhanced by your picker plugin (Snacks.nvim, Telescope, etc.)
+5. **⚡ Fast Switching**: Changes Neovim's working directory to the selected project instantly
+6. **📡 Event Broadcasting**: Triggers `ProjectSwitched` autocmd for other plugins to react
+7. **🔷📁 Visual Indicators**: Shows git repos with 🔷 and additional folders with 📁 in the picker
 
 ## 🔗 Integration & Compatibility
 

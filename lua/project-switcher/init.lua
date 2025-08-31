@@ -1,5 +1,5 @@
--- Project switcher for git repositories
--- Allows switching between different git repos without changing tmux panes
+-- Project switcher for git repositories and custom folders
+-- Allows switching between different projects without changing tmux panes
 
 local M = {}
 
@@ -13,6 +13,13 @@ M.config = {
     "~/work",
     "~/dev",
     "~/dotfiles",
+  },
+  -- Additional folders to include (both git and non-git)
+  additional_folders = {
+    -- Example:
+    -- "~/my-important-project",
+    -- "~/Documents/notes",
+    -- "/path/to/any/folder",
   },
   -- Maximum depth to search for git repos
   max_depth = 3,
@@ -56,7 +63,7 @@ local function find_git_repos(dirs, max_depth, show_hidden)
             table.insert(projects, {
               name = project_name,
               path = project_dir,
-              display = string.format("%-30s %s", project_name, project_dir)
+              type = "git"
             })
           end
         end
@@ -64,9 +71,35 @@ local function find_git_repos(dirs, max_depth, show_hidden)
     end
   end
 
-  -- Sort projects by name
-  table.sort(projects, function(a, b) return a.name < b.name end)
+  return projects
+end
 
+-- Add additional folders from config
+local function add_additional_folders(projects)
+  local seen = {}
+  
+  -- Track existing projects to avoid duplicates
+  for _, project in ipairs(projects) do
+    seen[project.path] = true
+  end
+  
+  -- Add additional folders
+  for _, folder in ipairs(M.config.additional_folders) do
+    local expanded_path = vim.fn.expand(folder)
+    if vim.fn.isdirectory(expanded_path) == 1 and not seen[expanded_path] then
+      seen[expanded_path] = true
+      local folder_name = vim.fn.fnamemodify(expanded_path, ":t")
+      table.insert(projects, {
+        name = folder_name,
+        path = expanded_path,
+        type = "custom"
+      })
+    end
+  end
+  
+  -- Sort all projects by name
+  table.sort(projects, function(a, b) return a.name < b.name end)
+  
   return projects
 end
 
@@ -111,18 +144,26 @@ local function save_cache(projects)
   end
 end
 
--- Get all projects (from cache or fresh search)
+-- Get all projects (git repos + additional folders)
 function M.get_projects(force_refresh)
+  local git_projects = {}
+  
   if not force_refresh then
     local cached = load_cache()
     if next(cached) then
-      return cached
+      git_projects = cached
     end
   end
+  
+  if #git_projects == 0 then
+    git_projects = find_git_repos(M.config.search_dirs, M.config.max_depth, M.config.show_hidden)
+    save_cache(git_projects)
+  end
 
-  local projects = find_git_repos(M.config.search_dirs, M.config.max_depth, M.config.show_hidden)
-  save_cache(projects)
-  return projects
+  -- Add additional folders from config
+  local all_projects = add_additional_folders(git_projects)
+  
+  return all_projects
 end
 
 -- Switch to a project
@@ -145,19 +186,20 @@ function M.switch_to_project(project_path)
   vim.api.nvim_exec_autocmds("User", { pattern = "ProjectSwitched", data = project_path })
 end
 
--- Show project picker using vim.ui.select (safer approach)
+-- Show project picker using vim.ui.select
 function M.pick_project()
   local projects = M.get_projects()
   
   if #projects == 0 then
-    vim.notify("No git repositories found in configured directories", vim.log.levels.WARN)
+    vim.notify("No projects found in configured directories", vim.log.levels.WARN)
     return
   end
   
-  -- Create a simple list for vim.ui.select
+  -- Create a list for vim.ui.select with type indicators
   local choices = {}
   for i, project in ipairs(projects) do
-    choices[i] = project.name .. " → " .. project.path
+    local type_indicator = project.type == "git" and "🔷" or "📁"
+    choices[i] = type_indicator .. " " .. project.name .. " → " .. project.path
   end
   
   vim.ui.select(choices, {
@@ -171,6 +213,7 @@ end
 
 -- Refresh project cache
 function M.refresh_projects()
+  cache_loaded = false
   M.get_projects(true)
   vim.notify("Project list refreshed and cached", vim.log.levels.INFO)
 end
@@ -184,9 +227,14 @@ function M.setup(opts)
     return vim.fn.expand(dir)
   end, M.config.search_dirs)
 
+  -- Expand all additional folders
+  M.config.additional_folders = vim.tbl_map(function(dir)
+    return vim.fn.expand(dir)
+  end, M.config.additional_folders)
+
   -- Create user commands
   vim.api.nvim_create_user_command("ProjectSwitch", M.pick_project, {
-    desc = "Switch to a different git repository project"
+    desc = "Switch to a different project"
   })
 
   vim.api.nvim_create_user_command("ProjectRefresh", M.refresh_projects, {
