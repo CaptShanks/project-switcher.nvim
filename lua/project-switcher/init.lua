@@ -117,6 +117,14 @@ local function load_cache()
       local cache_str = table.concat(content, "\n")
       local ok_decode, decoded = pcall(vim.fn.json_decode, cache_str)
       if ok_decode and decoded and decoded.projects then
+        -- Migrate old cache format that doesn't have 'type' field
+        for _, project in ipairs(decoded.projects) do
+          if not project.type then
+            project.type = "git"
+            -- Remove old display field if it exists
+            project.display = nil
+          end
+        end
         projects_cache = decoded.projects
       end
     end
