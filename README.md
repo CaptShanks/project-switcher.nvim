@@ -12,6 +12,7 @@ A blazingly fast Neovim plugin for switching between git repositories and custom
 - **📁 Custom Projects**: Add any folder (git or non-git) to your project list
 - **🎯 Fuzzy Search**: Beautiful picker interface using `vim.ui.select` (enhanced by Snacks.nvim, Telescope, etc.)
 - **🚫 Zero Disruption**: Changes Neovim's working directory while keeping tmux panes intact
+- **🎯 Smart Root Detection**: Automatically updates project root for keybindings like `<leader><space>` and `<leader>ff`
 - **⚙️ Highly Configurable**: Customize search paths, depth, visibility settings, and more
 - **🔗 Plugin Integration**: Works seamlessly with your existing picker/finder setup
 - **📝 Autocmd Support**: Triggers events for other plugins to hook into project switches
@@ -152,6 +153,12 @@ require("project-switcher").setup()
   
   -- Cache file location
   cache_file = vim.fn.stdpath("state") .. "/projects_cache.json",
+  
+  -- Change Neovim's root directory when switching projects
+  change_root = true,
+  
+  -- Update all buffers' local working directory when switching
+  update_buffer_cwd = true,
 }
 }
 ```

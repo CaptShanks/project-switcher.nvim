@@ -28,6 +28,10 @@ M.config = {
   -- Cache projects for faster loading
   use_cache = true,
   cache_file = vim.fn.stdpath("state") .. "/projects_cache.json",
+  -- Change Neovim's root directory when switching projects
+  change_root = true,
+  -- Update all buffers' local working directory when switching
+  update_buffer_cwd = true,
 }
 
 -- Cache for found projects
@@ -178,20 +182,55 @@ end
 function M.switch_to_project(project_path)
   if not project_path then return end
 
-  -- Change to the project directory
-  local ok, err = pcall(vim.cmd.cd, project_path)
-  if not ok then
-    vim.notify("Failed to change directory to " .. project_path .. ": " .. (err or "unknown error"), vim.log.levels.ERROR)
+  -- Expand the path to handle ~ and relative paths
+  local expanded_path = vim.fn.expand(project_path)
+  
+  -- Verify the directory exists
+  if vim.fn.isdirectory(expanded_path) ~= 1 then
+    vim.notify("Directory does not exist: " .. expanded_path, vim.log.levels.ERROR)
     return
   end
 
-  -- Update the working directory
-  vim.g.project_root = project_path
+  -- Change to the project directory
+  local ok, err = pcall(vim.cmd.cd, expanded_path)
+  if not ok then
+    vim.notify("Failed to change directory to " .. expanded_path .. ": " .. (err or "unknown error"), vim.log.levels.ERROR)
+    return
+  end
 
-  vim.notify("Switched to project: " .. vim.fn.fnamemodify(project_path, ":t"), vim.log.levels.INFO)
+  -- Update the working directory and project root
+  vim.g.project_root = expanded_path
+  
+  if M.config.change_root then
+    if M.config.update_buffer_cwd then
+      -- Update buffers to reflect the new root
+      local buffers = vim.api.nvim_list_bufs()
+      for _, buf in ipairs(buffers) do
+        if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_is_loaded(buf) then
+          -- Update buffer working directory
+          pcall(function()
+            vim.api.nvim_buf_call(buf, function()
+              vim.cmd.lcd(expanded_path)
+            end)
+          end)
+        end
+      end
+    end
+
+    -- Trigger DirChanged autocmd which many plugins listen to
+    vim.api.nvim_exec_autocmds("DirChanged", { 
+      data = { 
+        directory = expanded_path, 
+        scope = "global",
+        changed_window = false 
+      } 
+    })
+  end
+
+  vim.notify("Switched to project: " .. vim.fn.fnamemodify(expanded_path, ":t"), vim.log.levels.INFO)
 
   -- Trigger an autocmd for other plugins that might want to know about project switches
-  vim.api.nvim_exec_autocmds("User", { pattern = "ProjectSwitched", data = project_path })
+  vim.api.nvim_exec_autocmds("User", { pattern = "ProjectSwitched", data = expanded_path })
 end
 
 -- Show project picker using vim.ui.select
